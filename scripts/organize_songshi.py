@@ -7,7 +7,11 @@ from pathlib import Path
 
 
 HEADING_RE = re.compile(r"^(?P<level>#{1,6})\s+(?P<title>.+?)\s*$")
-MD_LINK_RE = re.compile(r"(?P<prefix>!?\[[^\]]*\]\()(?P<target>[^)]+)(?P<suffix>\))")
+MD_LINK_RE = re.compile(
+    r"(?P<prefix>!?\[[^\]]*\]\()"
+    r"(?P<target>(?:[^()\\]|\\.|\([^)]*\))+?)"
+    r"(?P<suffix>\))"
+)
 
 
 @dataclass(frozen=True)
@@ -21,7 +25,7 @@ def _decode_path(s: str) -> str:
 
 
 def _quote_link_path(path_str: str) -> str:
-    return urllib.parse.quote(path_str, safe="/%._-~")
+    return urllib.parse.quote(path_str, safe="/._-~")
 
 
 def _split_target(target: str) -> tuple[str, str, str]:

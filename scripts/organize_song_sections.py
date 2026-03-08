@@ -6,7 +6,11 @@ from dataclasses import dataclass
 from pathlib import Path
 
 
-MD_LINK_RE = re.compile(r"(?P<prefix>!?\[[^\]]*\]\()(?P<target>[^)]+)(?P<suffix>\))")
+MD_LINK_RE = re.compile(
+    r"(?P<prefix>!?\[[^\]]*\]\()"
+    r"(?P<target>(?:[^()\\]|\\.|\([^)]*\))+?)"
+    r"(?P<suffix>\))"
+)
 
 
 @dataclass(frozen=True)
@@ -40,7 +44,7 @@ def _is_external(path_part: str) -> bool:
 
 
 def _quote_path(path_str: str) -> str:
-    return urllib.parse.quote(path_str, safe="/%._-~")
+    return urllib.parse.quote(path_str, safe="/._-~")
 
 
 def _iter_targets(markdown_text: str) -> list[str]:

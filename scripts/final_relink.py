@@ -3,10 +3,21 @@ import os
 import re
 import urllib.parse
 from pathlib import Path
+from itertools import product
 
 
-MD_LINK_RE = re.compile(r"(?P<prefix>!?\[[^\]]*\]\()(?P<target>[^)]+)(?P<suffix>\))")
+MD_LINK_RE = re.compile(
+    r"(?P<prefix>!?\[[^\]]*\]\()"
+    r"(?P<target>(?:[^()\\]|\\.|\([^)]*\))+?)"
+    r"(?P<suffix>\))"
+)
+NESTED_MD_LINK_RE = re.compile(
+    r"(?P<prefix>\[\[[^\]]+\]\([^)]+\)\]\()"
+    r"(?P<target>(?:[^()\\]|\\.|\([^)]*\))+?)"
+    r"(?P<suffix>\))"
+)
 TOP_SECTIONS = {"松史", "松典", "松论", "松百科", "松录", "观松者", "趣事", "松·Gallery"}
+HEX32_RE = re.compile(r"^(?P<stem>.+?)\s+[0-9a-f]{32}$", re.IGNORECASE)
 
 
 def _split_target(target: str) -> tuple[str, str, str]:
@@ -34,7 +45,9 @@ def _is_external(path_part: str) -> bool:
 
 
 def _quote_path(path_str: str) -> str:
-    return urllib.parse.quote(path_str, safe="/%._-~")
+    # Do not keep '%' safe: if a filename literally contains '%' it must become '%25'
+    # to survive URL decoding in MkDocs.
+    return urllib.parse.quote(path_str, safe="/._-~")
 
 
 def _normalize_path(path_part: str) -> str:
@@ -42,6 +55,66 @@ def _normalize_path(path_part: str) -> str:
     while p.startswith("./"):
         p = p[2:]
     return p
+
+
+def _normalize_raw_path(path_part: str) -> str:
+    p = path_part.replace("\\", "/")
+    while p.startswith("./"):
+        p = p[2:]
+    return p
+
+
+def _resolve_mixed_encoded_path(base_dir: Path, raw_path: str) -> Path | None:
+    parts = [x for x in Path(raw_path).parts if x not in {"", "."}]
+    if not parts:
+        return None
+
+    alt_lists: list[list[str]] = []
+    for comp in parts:
+        dec = urllib.parse.unquote(comp)
+        if dec != comp:
+            alt_lists.append([comp, dec])
+        else:
+            alt_lists.append([comp])
+
+    # Bound combinatorics for long paths.
+    if len(alt_lists) > 8:
+        return None
+
+    for combo in product(*alt_lists):
+        cand = base_dir.joinpath(*combo).resolve()
+        if cand.exists():
+            return cand
+    return None
+
+
+def _strip_hex_suffix(path_str: str) -> str:
+    p = Path(path_str)
+    if not p.name:
+        return path_str
+    ext = p.suffix
+    stem = p.stem if ext else p.name
+    m = HEX32_RE.match(stem)
+    if not m:
+        return path_str
+    new_name = f"{m.group('stem')}{ext}"
+    return str(p.with_name(new_name)).replace("\\", "/")
+
+
+def _dedupe_leading_segment(decoded: str) -> str:
+    parts = [x for x in Path(decoded).parts if x not in {"", "."}]
+    if len(parts) >= 2 and parts[0] == parts[1]:
+        return "/".join(parts[1:])
+    return decoded
+
+
+def _trim_current_dir_prefix(decoded: str, md_path: Path) -> str:
+    parts = [x for x in Path(decoded).parts if x not in {"", "."}]
+    if len(parts) < 2:
+        return decoded
+    if parts[0] == md_path.parent.name:
+        return "/".join(parts[1:])
+    return decoded
 
 
 def _resolve_special_to_song_root(decoded: str, docs_root: Path) -> Path | None:
@@ -90,6 +163,7 @@ def _suffix_match(
 def _resolve_replacement(
     *,
     md_path: Path,
+    raw_path: str,
     decoded: str,
     docs_root: Path,
     all_rel_files: list[Path],
@@ -99,6 +173,26 @@ def _resolve_replacement(
     cand = (md_path.parent / decoded).resolve()
     if cand.exists():
         return cand
+
+    cand_raw = (md_path.parent / raw_path).resolve()
+    if cand_raw.exists():
+        return cand_raw
+
+    mixed = _resolve_mixed_encoded_path(md_path.parent, raw_path)
+    if mixed is not None:
+        return mixed
+
+    deduped = _dedupe_leading_segment(decoded)
+    if deduped != decoded:
+        cand2 = (md_path.parent / deduped).resolve()
+        if cand2.exists():
+            return cand2
+
+    trimmed = _trim_current_dir_prefix(decoded, md_path)
+    if trimmed != decoded:
+        cand_trim = (md_path.parent / trimmed).resolve()
+        if cand_trim.exists():
+            return cand_trim
 
     # 2) Section-aware rewrite to docs/松/<section>/...
     special = _resolve_special_to_song_root(decoded, docs_root)
@@ -110,11 +204,31 @@ def _resolve_replacement(
     if suffix_hit is not None:
         return docs_root / suffix_hit
 
+    # 3.5) Try again after stripping Notion-style trailing hex id.
+    stripped = _strip_hex_suffix(trimmed)
+    if stripped != decoded:
+        cand3 = (md_path.parent / stripped).resolve()
+        if cand3.exists():
+            return cand3
+        special2 = _resolve_special_to_song_root(stripped, docs_root)
+        if special2 is not None:
+            return special2
+        suffix2 = _suffix_match(stripped, all_rel_files)
+        if suffix2 is not None:
+            return docs_root / suffix2
+
     # 4) Unique basename fallback
     name = Path(decoded).name
     hits = basename_index.get(name, [])
     if len(hits) == 1:
         return docs_root / hits[0]
+
+    # 5) Unique basename fallback after stripping trailing hex.
+    stripped_name = Path(stripped).name
+    if stripped_name != name:
+        hits2 = basename_index.get(stripped_name, [])
+        if len(hits2) == 1:
+            return docs_root / hits2[0]
 
     return None
 
@@ -137,8 +251,10 @@ def _rewrite_md_file(
             return m.group(0)
 
         decoded = _normalize_path(path_part)
+        raw_path = _normalize_raw_path(path_part)
         replacement = _resolve_replacement(
             md_path=md_path,
+            raw_path=raw_path,
             decoded=decoded,
             docs_root=docs_root,
             all_rel_files=all_rel_files,
@@ -154,6 +270,7 @@ def _rewrite_md_file(
         return f"{m.group('prefix')}{new_target}{m.group('suffix')}"
 
     new_text = MD_LINK_RE.sub(repl, text)
+    new_text = NESTED_MD_LINK_RE.sub(repl, new_text)
     if changed:
         md_path.write_text(new_text, encoding="utf-8")
     return changed

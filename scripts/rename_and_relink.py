@@ -7,7 +7,17 @@ from pathlib import Path
 
 
 HEX32_RE = re.compile(r"^(?P<stem>.+?)\s+(?P<hex>[0-9a-f]{32})(?P<suffix>_all)?$", re.IGNORECASE)
-MD_LINK_RE = re.compile(r"(?P<prefix>!?\[[^\]]*\]\()(?P<target>[^)]+)(?P<suffix>\))")
+MD_LINK_RE = re.compile(
+    r"(?P<prefix>!?\[[^\]]*\]\()"
+    r"(?P<target>(?:[^()\\]|\\.|\([^)]*\))+?)"
+    r"(?P<suffix>\))"
+)
+NESTED_MD_LINK_RE = re.compile(
+    r"(?P<prefix>\[\[[^\]]+\]\([^)]+\)\]\()"
+    r"(?P<target>(?:[^()\\]|\\.|\([^)]*\))+?)"
+    r"(?P<suffix>\))"
+)
+PCT_ENC_RE = re.compile(r"%[0-9a-fA-F]{2}")
 
 
 @dataclass(frozen=True)
@@ -28,6 +38,12 @@ def _strip_hex_suffix(name: str) -> str | None:
     stem = m.group("stem")
     suffix = m.group("suffix") or ""
     return f"{stem}{suffix}"
+
+
+def _decode_pct_component(name: str) -> str:
+    if not PCT_ENC_RE.search(name):
+        return name
+    return urllib.parse.unquote(name)
 
 
 def _strip_hex_from_filename(filename: str) -> tuple[str | None, str | None]:
@@ -59,20 +75,26 @@ def _plan_renames(docs_root: Path) -> list[tuple[Path, Path]]:
 
         is_dir = p.is_dir()
         old_name = p.name
+        decoded_name = _decode_pct_component(old_name)
 
         if is_dir:
-            new_stem = _strip_hex_suffix(old_name)
-            if not new_stem:
+            base_name = decoded_name
+            stripped = _strip_hex_suffix(base_name)
+            if stripped:
+                base_name = stripped
+            if base_name == old_name:
                 continue
-            new_name = new_stem
+            new_name = base_name
             candidate = p.with_name(new_name)
         else:
-            ext = p.suffix
-            stem = p.stem
+            ext = Path(decoded_name).suffix
+            stem = Path(decoded_name).stem if ext else decoded_name
             new_stem = _strip_hex_suffix(stem)
-            if not new_stem:
+            if new_stem:
+                stem = new_stem
+            new_name = f"{stem}{ext}" if ext else stem
+            if new_name == old_name:
                 continue
-            new_name = f"{new_stem}{ext}"
             candidate = p.with_name(new_name)
 
         old_rel = _safe_rel_posix(p, docs_root)
@@ -144,7 +166,7 @@ def _is_external_target(path_part: str) -> bool:
 def _quote_link_path(path_str: str) -> str:
     # Percent-encode spaces and non-ASCII safely for Markdown links.
     # Keep '/' so relative paths remain readable structurally.
-    return urllib.parse.quote(path_str, safe="/%._-~")
+    return urllib.parse.quote(path_str, safe="/._-~")
 
 
 def _norm_posix(path: Path) -> str:
@@ -167,6 +189,7 @@ def _resolve_existing_path(
     - First tries mapping-based rewrite (old_rel -> new_rel), where old_rel/new_rel are docs-root-relative.
     - Then tries heuristic stripping of Notion 32-hex suffixes in path components.
     """
+    raw = link_path.replace("\\", "/")
     decoded = urllib.parse.unquote(link_path)
     decoded = decoded.replace("\\", "/")
     # Only strip explicit './' prefixes; keep '../' which changes base.
@@ -175,6 +198,7 @@ def _resolve_existing_path(
 
     # Compute a docs-root-relative candidate for mapping lookup.
     abs_guess = (docs_root / decoded) if decoded.startswith("/") else (base_dir / decoded)
+    abs_guess_raw = (docs_root / raw) if raw.startswith("/") else (base_dir / raw)
     try:
         rel_guess = abs_guess.relative_to(docs_root)
         rel_guess_str = _norm_posix(rel_guess)
@@ -188,6 +212,8 @@ def _resolve_existing_path(
 
     if abs_guess.exists():
         return abs_guess
+    if abs_guess_raw.exists():
+        return abs_guess_raw
 
     # Heuristic: strip hex suffixes in each component.
     parts = [p for p in Path(decoded).parts if p not in {"", "."}]
@@ -253,6 +279,7 @@ def _rewrite_markdown_file(path: Path, mapping: dict[str, str], docs_root: Path)
         return f"{m.group('prefix')}{new_target}{m.group('suffix')}"
 
     new_text = MD_LINK_RE.sub(repl, text)
+    new_text = NESTED_MD_LINK_RE.sub(repl, new_text)
     if changed:
         path.write_text(new_text, encoding="utf-8")
     return changed
