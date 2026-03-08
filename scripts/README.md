@@ -32,6 +32,7 @@ python scripts/compress_new_images_and_validate.py
 ```
 
 默认行为：
+- 先对新增/变更 Markdown 自动做并列排版（2图双列、3图三列、4+图按每行2张）
 - 仅压缩相对 `HEAD~1` 新增/变更图片（含 untracked）
 - 然后执行 `mkdocs build --strict`
 
@@ -40,6 +41,26 @@ python scripts/compress_new_images_and_validate.py
 ```bash
 python scripts/compress_new_images_and_validate.py --all-images
 ```
+
+常用开关：
+- `--skip-gallery-layout`：跳过并列排版
+- `--all-markdown`：对 `docs/` 下全部 Markdown 执行并列排版
+
+## 快速新增条目
+
+```bash
+python scripts/add_entry.py --dir "docs/松/松史/追求女生的经历" --name "新条目"
+```
+
+默认行为：
+- 在目标目录创建 `新条目.md`
+- 创建同名素材目录 `新条目/`
+- 若存在 `.pages`，自动将 `新条目.md` 追加到 `nav:`
+- 当目录是 `docs/松/松史/追求女生的经历` 时，自动更新 `docs/松/松史/index.md` 的「追求女生的经历」段落
+
+常用参数：
+- `--dry-run`：只预览将执行的操作
+- `--force`：当同名 Markdown 已存在时覆盖
 
 ## 各脚本职责
 

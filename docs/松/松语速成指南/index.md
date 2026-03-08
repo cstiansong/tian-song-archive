@@ -28,10 +28,10 @@
 
 可以用**那啥**或省略号（**……**）来代替，如：
 
-![Untitled](Untitled.png)
-
-![Untitled](Untitled%201.png)
-
+<div style="display:flex; gap:12px; flex-wrap:wrap; align-items:flex-start;">
+  <img src="Untitled.png" alt="Untitled" style="width:49%; height:360px; object-fit:contain; background:#f5f5f5;" />
+  <img src="Untitled%201.png" alt="Untitled" style="width:49%; height:360px; object-fit:contain; background:#f5f5f5;" />
+</div>
 （上面一句是群友模仿，并非田松原话）
 
 ## 遇到挫折如何自我安慰
@@ -118,10 +118,10 @@
 
 示例如下：
 
-![Untitled](Untitled%208.png)
-
-![Untitled](Untitled%209.png)
-
+<div style="display:flex; gap:12px; flex-wrap:wrap; align-items:flex-start;">
+  <img src="Untitled%208.png" alt="Untitled" style="width:49%; height:360px; object-fit:contain; background:#f5f5f5;" />
+  <img src="Untitled%209.png" alt="Untitled" style="width:49%; height:360px; object-fit:contain; background:#f5f5f5;" />
+</div>
 # 模板
 
 ## 醉酒体

@@ -2,6 +2,7 @@ import argparse
 import subprocess
 from pathlib import Path
 
+from gallery_utils import apply_gallery_layout, collect_markdown_files
 from media_utils import collect_images, compress_images, format_bytes
 
 
@@ -25,6 +26,19 @@ def main() -> None:
     parser.add_argument("--image-max-width", type=int, default=1400)
     parser.add_argument("--jpg-quality", type=int, default=68)
     parser.add_argument("--workers", type=int, default=16)
+    parser.add_argument(
+        "--skip-gallery-layout",
+        action="store_true",
+        help="Skip auto side-by-side gallery formatting for changed markdown files.",
+    )
+    parser.add_argument(
+        "--all-markdown",
+        action="store_true",
+        help="Apply gallery formatting to all markdown files under docs/.",
+    )
+    parser.add_argument("--gallery-min-group", type=int, default=2)
+    parser.add_argument("--gallery-gap", type=int, default=12)
+    parser.add_argument("--gallery-height", type=int, default=360)
     args = parser.parse_args()
 
     docs_dir = args.docs.resolve()
@@ -37,6 +51,28 @@ def main() -> None:
         raise ValueError("--image-max-width must be >= 0")
     if args.workers < 1:
         raise ValueError("--workers must be >= 1")
+    if args.gallery_min_group < 2:
+        raise ValueError("--gallery-min-group must be >= 2")
+    if args.gallery_gap < 0:
+        raise ValueError("--gallery-gap must be >= 0")
+    if args.gallery_height < 1:
+        raise ValueError("--gallery-height must be >= 1")
+
+    gallery_candidates = collect_markdown_files(
+        docs_dir,
+        changed_only=not args.all_markdown,
+        base_ref=args.base_ref,
+    )
+    gallery_files_updated = 0
+    gallery_groups_updated = 0
+    if not args.skip_gallery_layout:
+        gallery_files_updated, gallery_groups_updated = apply_gallery_layout(
+            gallery_candidates,
+            min_group=args.gallery_min_group,
+            gap_px=args.gallery_gap,
+            fixed_height=args.gallery_height,
+            dry_run=False,
+        )
 
     image_files = collect_images(
         docs_dir,
@@ -58,6 +94,11 @@ def main() -> None:
     saved = max(total_before - total_after, 0)
     ratio = (saved / total_before * 100.0) if total_before > 0 else 0.0
     print("OK")
+    print(f"- Markdown candidates: {len(gallery_candidates)}")
+    print(
+        "- Gallery formatting: "
+        f"updated_files={gallery_files_updated}, converted_groups={gallery_groups_updated}"
+    )
     print(f"- Image candidates: {len(image_files)}")
     print(f"- Compressed images: scanned={scanned}, updated={updated}, errors={errors}")
     print(

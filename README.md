@@ -38,24 +38,32 @@ mkdocs serve
 mkdocs build --strict
 ```
 
-若本次改动包含图片，建议使用增量压缩 + 严格校验：
+若本次改动包含新增内容，建议使用“自动排版 + 增量压缩 + 严格校验”：
 
 ```bash
 python scripts/compress_new_images_and_validate.py
 ```
 
 补充：
+- 默认先对新增/变更 Markdown 自动做图片并列排版，再压缩新增/变更图片
 - 默认仅处理相对 `HEAD~1` 的新增/变更图片（包含 untracked）。
 - 全量模式：`python scripts/compress_new_images_and_validate.py --all-images`
 
 ## 内容维护规范
 
 - 新增内容优先直接编辑 `docs/`。
-- 事件类条目建议命名为 `YYYY-MM-DD 事件名.md`。
 - 持续更新或素材较多的主题，建议使用目录章节（`<主题>/index.md` + 同目录素材）。
 - 新增条目后需同步：
   - 对应目录 `.pages`（侧边栏顺序）；
   - 入口索引（通常为 `docs/松/松史/index.md`）。
+
+快捷新增（自动建文件并更新导航）：
+
+```bash
+python scripts/add_entry.py --dir "docs/松/松史/追求女生的经历" --name "新条目"
+```
+
+说明：可加 `--dry-run` 先预览，`--force` 覆盖同名 Markdown。
 
 ## Notion 迁移与重建
 
