@@ -5,7 +5,7 @@ from gallery_utils import apply_gallery_layout, collect_markdown_files
 
 def main() -> None:
     parser = argparse.ArgumentParser(
-        description="Auto-convert consecutive markdown images into side-by-side gallery blocks."
+        description="Auto-convert consecutive images into GitHub-friendly inline HTML rows."
     )
     parser.add_argument(
         "--path",
@@ -20,18 +20,6 @@ def main() -> None:
         help="Minimum consecutive image count to convert (default: 2)",
     )
     parser.add_argument(
-        "--gap",
-        type=int,
-        default=12,
-        help="Gap in px between side-by-side images (default: 12)",
-    )
-    parser.add_argument(
-        "--fixed-height",
-        type=int,
-        default=360,
-        help="Fixed image height in px for gallery rows (default: 360)",
-    )
-    parser.add_argument(
         "--dry-run",
         action="store_true",
         help="Preview file changes without writing files.",
@@ -40,8 +28,6 @@ def main() -> None:
 
     if args.min_group < 2:
         raise ValueError("--min-group must be >= 2")
-    if args.gap < 0:
-        raise ValueError("--gap must be >= 0")
 
     path = args.path.resolve()
     if path.is_file():
@@ -52,8 +38,6 @@ def main() -> None:
     updated_files, updated_groups = apply_gallery_layout(
         files,
         min_group=args.min_group,
-        gap_px=args.gap,
-        fixed_height=args.fixed_height,
         dry_run=args.dry_run,
     )
 

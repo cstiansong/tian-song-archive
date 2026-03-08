@@ -45,7 +45,7 @@ python scripts/compress_new_images_and_validate.py
 ```
 
 补充：
-- 默认先对新增/变更 Markdown 自动做图片并列排版，再压缩新增/变更图片
+- 默认先对新增/变更 Markdown 自动做图片并列排版（GitHub 兼容 `<p><img width=...>`），再压缩新增/变更图片
 - 默认仅处理相对 `HEAD~1` 的新增/变更图片（包含 untracked）。
 - 全量模式：`python scripts/compress_new_images_and_validate.py --all-images`
 

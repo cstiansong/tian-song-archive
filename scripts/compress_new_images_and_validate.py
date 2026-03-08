@@ -29,7 +29,7 @@ def main() -> None:
     parser.add_argument(
         "--skip-gallery-layout",
         action="store_true",
-        help="Skip auto side-by-side gallery formatting for changed markdown files.",
+        help="Skip auto gallery formatting (GitHub-friendly markdown tables).",
     )
     parser.add_argument(
         "--all-markdown",
@@ -37,8 +37,6 @@ def main() -> None:
         help="Apply gallery formatting to all markdown files under docs/.",
     )
     parser.add_argument("--gallery-min-group", type=int, default=2)
-    parser.add_argument("--gallery-gap", type=int, default=12)
-    parser.add_argument("--gallery-height", type=int, default=360)
     args = parser.parse_args()
 
     docs_dir = args.docs.resolve()
@@ -53,10 +51,6 @@ def main() -> None:
         raise ValueError("--workers must be >= 1")
     if args.gallery_min_group < 2:
         raise ValueError("--gallery-min-group must be >= 2")
-    if args.gallery_gap < 0:
-        raise ValueError("--gallery-gap must be >= 0")
-    if args.gallery_height < 1:
-        raise ValueError("--gallery-height must be >= 1")
 
     gallery_candidates = collect_markdown_files(
         docs_dir,
@@ -69,8 +63,6 @@ def main() -> None:
         gallery_files_updated, gallery_groups_updated = apply_gallery_layout(
             gallery_candidates,
             min_group=args.gallery_min_group,
-            gap_px=args.gallery_gap,
-            fixed_height=args.gallery_height,
             dry_run=False,
         )
 
@@ -108,6 +100,15 @@ def main() -> None:
         f"saved={format_bytes(saved)} ({ratio:.1f}%)"
     )
 
+    subprocess.run(
+        [
+            "python",
+            "scripts/check_gallery_format.py",
+            "--docs",
+            str(docs_dir),
+        ],
+        check=True,
+    )
     subprocess.run(["mkdocs", "build", "--strict"], check=True)
 
 

@@ -32,7 +32,8 @@ python scripts/compress_new_images_and_validate.py
 ```
 
 默认行为：
-- 先对新增/变更 Markdown 自动做并列排版（2图双列、3图三列、4+图按每行2张）
+- 先对新增/变更 Markdown 自动做并列排版（GitHub 兼容 `<p><img width=...>`）
+- 规则：2图双列、3图三列、4+图按每行2张
 - 仅压缩相对 `HEAD~1` 新增/变更图片（含 untracked）
 - 然后执行 `mkdocs build --strict`
 
@@ -45,6 +46,16 @@ python scripts/compress_new_images_and_validate.py --all-images
 常用开关：
 - `--skip-gallery-layout`：跳过并列排版
 - `--all-markdown`：对 `docs/` 下全部 Markdown 执行并列排版
+
+并列格式检查（CI 同款）：
+
+```bash
+python scripts/check_gallery_format.py
+```
+
+该检查会在以下情况失败：
+- 仍存在旧并列格式（`<div...>`、`<img style=...>`、图片表格并列）
+- `auto_gallery_layout.py --dry-run` 仍会修改文件（说明尚未归一化）
 
 ## 快速新增条目
 
@@ -70,5 +81,8 @@ python scripts/add_entry.py --dir "docs/松/松史/追求女生的经历" --name
 - `organize_songshi.py`：按标题拆分并整理松史结构
 - `final_relink.py`：最终链接修复与归一化
 - `media_utils.py`：图片压缩/文件体积等复用函数
+- `gallery_utils.py`：多图并列排版（`<p><img width=...>`）复用函数
+- `auto_gallery_layout.py`：批量执行并列排版
+- `check_gallery_format.py`：并列格式规范检查（用于 CI）
 - `add_entry.py`：新增条目并同步 `.pages` / 索引
 - `import_export.py`：从 Notion 导出目录导入到本地 `export/`
