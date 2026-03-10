@@ -47,6 +47,12 @@ python scripts/compress_new_images_and_validate.py --all-images
 - `--skip-gallery-layout`：跳过并列排版
 - `--all-markdown`：对 `docs/` 下全部 Markdown 执行并列排版
 
+按单篇文档引用压缩图片：
+
+```bash
+python scripts/compress_images_in_md.py --md "docs/松/松史/追求女生的经历/田松的初恋.md"
+```
+
 并列格式检查（CI 同款）：
 
 ```bash
@@ -83,6 +89,7 @@ python scripts/add_entry.py --dir "docs/松/松史/追求女生的经历" --name
 - `media_utils.py`：图片压缩/文件体积等复用函数
 - `gallery_utils.py`：多图并列排版（`<p><img width=...>`）复用函数
 - `auto_gallery_layout.py`：批量执行并列排版
+- `compress_images_in_md.py`：按单篇 Markdown 引用压缩图片
 - `check_gallery_format.py`：并列格式规范检查（用于 CI）
 - `add_entry.py`：新增条目并同步 `.pages` / 索引
 - `import_export.py`：从 Notion 导出目录导入到本地 `export/`

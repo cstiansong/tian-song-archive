@@ -16,6 +16,7 @@
 - `docs/松/松史/index.md`：松史主入口。
 - `docs/松/`：松史、松典、松录、松论、松百科、观松者、趣事等分栏。
 - `scripts/`：迁移、重建、链接修复、媒体压缩与校验脚本（详见 `scripts/README.md`）。
+- `rules/`：新增资料处理、图片规范、校验门禁等流程规则。
 - `.github/workflows/pages.yml`：GitHub Pages 构建配置。
 
 说明：当 `docs/松/` 下存在“同名 Markdown + 同名目录”时，目录作为章节容器，Markdown 作为该章节 `index.md`。

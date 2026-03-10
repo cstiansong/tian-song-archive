@@ -29,7 +29,7 @@ def main() -> None:
     parser.add_argument(
         "--skip-gallery-layout",
         action="store_true",
-        help="Skip auto gallery formatting (GitHub-friendly markdown tables).",
+        help="Skip auto gallery formatting (GitHub-friendly <p><img width=...>).",
     )
     parser.add_argument(
         "--all-markdown",
