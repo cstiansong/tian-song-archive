@@ -17,6 +17,27 @@ P_START_RE = re.compile(r"^\s*<p>\s*$", re.IGNORECASE)
 P_END_RE = re.compile(r"^\s*</p>\s*$", re.IGNORECASE)
 
 
+_GENERIC_ALT_RE = re.compile(r"^\s*Untitled(?:\s*\d+)?\s*$", re.IGNORECASE)
+
+
+def _default_alt_from_src(src: str) -> str:
+    # Prefer a stable, descriptive alt for Notion-exported assets.
+    # Use the decoded basename so "%20" becomes a space in alt text.
+    try:
+        decoded = urllib.parse.unquote(src)
+    except Exception:
+        decoded = src
+    name = Path(decoded).name
+    return name or ""
+
+
+def _normalize_alt(alt: str, src: str) -> str:
+    a = (alt or "").strip()
+    if not a or _GENERIC_ALT_RE.match(a):
+        return _default_alt_from_src(src)
+    return a
+
+
 def collect_markdown_files(docs_dir: Path, changed_only: bool, base_ref: str = "HEAD~1") -> list[Path]:
     if not changed_only:
         return sorted(p for p in docs_dir.rglob("*.md") if p.is_file())
@@ -47,6 +68,7 @@ def _render_gallery(images: list[tuple[str, str]]) -> list[str]:
     for idx, group in enumerate(groups):
         if len(group) == 1:
             alt, src = group[0]
+            alt = _normalize_alt(alt, src)
             out.append(f"![{alt}]({src})")
             continue
 
@@ -56,6 +78,7 @@ def _render_gallery(images: list[tuple[str, str]]) -> list[str]:
             width = "32%"
         out.append("<p>")
         for alt, src in group:
+            alt = _normalize_alt(alt, src)
             out.append(f'  <img src="{src}" alt="{alt}" width="{width}">')
         out.append("</p>")
         if idx != len(groups) - 1:
@@ -77,6 +100,8 @@ def _normalize_image_src(md_path: Path, src: str) -> str:
     if len(parts) < 2:
         return src
 
+    # Preferred style: when images live in sibling folder named after the page
+    # ("X.md" + "X/<file>"), use "<file>" in <img src> blocks.
     first = parts[0]
     md_stem = md_path.stem
     if first != md_stem:
@@ -101,6 +126,7 @@ def _extract_images_from_div_block(block_lines: list[str]) -> list[tuple[str, st
         src = m.group("src")
         alt_match = ALT_ATTR_RE.search(line)
         alt = alt_match.group("alt") if alt_match else ""
+        alt = _normalize_alt(alt, src)
         images.append((alt, src))
     return images
 
@@ -114,6 +140,7 @@ def _extract_images_from_p_block(block_lines: list[str]) -> list[tuple[str, str]
         src = m.group("src")
         alt_match = ALT_ATTR_RE.search(line)
         alt = alt_match.group("alt") if alt_match else ""
+        alt = _normalize_alt(alt, src)
         images.append((alt, src))
     return images
 

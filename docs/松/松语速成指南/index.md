@@ -29,8 +29,8 @@
 可以用**那啥**或省略号（**……**）来代替，如：
 
 <p>
-  <img src="Untitled.png" alt="Untitled" width="49%">
-  <img src="Untitled%201.png" alt="Untitled" width="49%">
+  <img src="Untitled.png" alt="Untitled.png" width="49%">
+  <img src="Untitled%201.png" alt="Untitled 1.png" width="49%">
 </p>
 
 （上面一句是群友模仿，并非田松原话）
@@ -120,8 +120,8 @@
 示例如下：
 
 <p>
-  <img src="Untitled%208.png" alt="Untitled" width="49%">
-  <img src="Untitled%209.png" alt="Untitled" width="49%">
+  <img src="Untitled%208.png" alt="Untitled 8.png" width="49%">
+  <img src="Untitled%209.png" alt="Untitled 9.png" width="49%">
 </p>
 
 # 模板

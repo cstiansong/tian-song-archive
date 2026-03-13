@@ -16,6 +16,13 @@ NESTED_MD_LINK_RE = re.compile(
     r"(?P<target>(?:[^()\\]|\\.|\([^)]*\))+?)"
     r"(?P<suffix>\))"
 )
+HTML_IMG_SRC_RE = re.compile(
+    r"(?P<prefix><img\b[^>]*?\bsrc\s*=\s*)"
+    r"(?P<quote>\"|')"
+    r"(?P<target>[^\"']*)"
+    r"(?P=quote)",
+    re.IGNORECASE,
+)
 TOP_SECTIONS = {"松史", "松典", "松论", "松百科", "松录", "观松者", "趣事", "松·Gallery"}
 HEX32_RE = re.compile(r"^(?P<stem>.+?)\s+[0-9a-f]{32}$", re.IGNORECASE)
 
@@ -41,7 +48,7 @@ def _split_target(target: str) -> tuple[str, str, str]:
 
 def _is_external(path_part: str) -> bool:
     low = path_part.lower()
-    return low.startswith(("http://", "https://", "mailto:", "tel:"))
+    return low.startswith(("http://", "https://", "mailto:", "tel:", "data:", "//"))
 
 
 def _quote_path(path_str: str) -> str:
@@ -178,6 +185,15 @@ def _resolve_replacement(
     if cand_raw.exists():
         return cand_raw
 
+    # 1.5) Notion-style attachment folder: "<page>.md" + "<page>/..."
+    # Common when HTML <img src="Untitled 1.png"> is used.
+    att = (md_path.parent / md_path.stem / decoded).resolve()
+    if att.exists():
+        return att
+    att_raw = (md_path.parent / md_path.stem / raw_path).resolve()
+    if att_raw.exists():
+        return att_raw
+
     mixed = _resolve_mixed_encoded_path(md_path.parent, raw_path)
     if mixed is not None:
         return mixed
@@ -239,6 +255,7 @@ def _rewrite_md_file(
     docs_root: Path,
     all_rel_files: list[Path],
     basename_index: dict[str, list[Path]],
+    dry_run: bool,
 ) -> bool:
     text = md_path.read_text(encoding="utf-8")
     changed = False
@@ -269,10 +286,49 @@ def _rewrite_md_file(
             changed = True
         return f"{m.group('prefix')}{new_target}{m.group('suffix')}"
 
+    def repl_img(m: re.Match[str]) -> str:
+        nonlocal changed
+        target = (m.group("target") or "").strip()
+        path_part, query, frag = _split_target(target)
+        if not path_part or _is_external(path_part):
+            return m.group(0)
+
+        decoded = _normalize_path(path_part)
+        raw_path = _normalize_raw_path(path_part)
+        replacement = _resolve_replacement(
+            md_path=md_path,
+            raw_path=raw_path,
+            decoded=decoded,
+            docs_root=docs_root,
+            all_rel_files=all_rel_files,
+            basename_index=basename_index,
+        )
+        if replacement is None:
+            return m.group(0)
+
+        # Prefer page-local asset paths for HTML <img>.
+        # For a page "X.md" with assets in sibling folder "X/", MkDocs
+        # commonly serves the page at ".../X/" and assets in the same directory.
+        # Using "src=\"file.png\"" matches the style in docs and avoids repeating
+        # the page folder name.
+        page_asset_dir = md_path.parent if md_path.name == "index.md" else (md_path.parent / md_path.stem)
+        try:
+            replacement.relative_to(page_asset_dir)
+            rel = Path(os.path.relpath(replacement, page_asset_dir)).as_posix()
+        except ValueError:
+            rel = Path(os.path.relpath(replacement, md_path.parent)).as_posix()
+
+        new_target = _quote_path(rel) + query + frag
+        if new_target != target:
+            changed = True
+        return f"{m.group('prefix')}{m.group('quote')}{new_target}{m.group('quote')}"
+
     new_text = MD_LINK_RE.sub(repl, text)
     new_text = NESTED_MD_LINK_RE.sub(repl, new_text)
+    new_text = HTML_IMG_SRC_RE.sub(repl_img, new_text)
     if changed:
-        md_path.write_text(new_text, encoding="utf-8")
+        if not dry_run:
+            md_path.write_text(new_text, encoding="utf-8")
     return changed
 
 
@@ -281,6 +337,11 @@ def main() -> None:
         description="Final link normalization pass after docs restructuring."
     )
     parser.add_argument("--docs", type=Path, required=True, help="MkDocs docs/ directory")
+    parser.add_argument(
+        "--dry-run",
+        action="store_true",
+        help="Detect and report, but do not write files",
+    )
     args = parser.parse_args()
 
     docs_root = args.docs.resolve()
@@ -299,6 +360,7 @@ def main() -> None:
             docs_root=docs_root,
             all_rel_files=all_rel_files,
             basename_index=basename_index,
+            dry_run=args.dry_run,
         ):
             changed_files += 1
 
